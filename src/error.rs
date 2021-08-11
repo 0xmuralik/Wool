@@ -15,6 +15,12 @@ pub enum ContractError {
         // found: String,
     },
 
+    #[error("Insufficient Funds")]
+    InsufficientFunds{
+        // expected: String,
+        // found: String,
+    },
+
     #[error("Pool id already in use")]
     AlreadyInUse {},
     // Add any other custom errors you like here.

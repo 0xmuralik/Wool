@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 #[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{entry_point,to_binary,attr,Addr,CosmosMsg,BankMsg, Uint128,Binary,Coin, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 use crate::error::ContractError;
-use crate::msg::{FundsResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{FundsResponse,PriceResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Pool, POOLS};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -27,7 +26,8 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::CreatePool{name} => try_create(deps,info,name),
-        ExecuteMsg::AddFunds{pool_id} => try_add_funds(deps,info,pool_id)
+        ExecuteMsg::AddFunds{pool_id} => try_add_funds(deps,info,pool_id),
+        ExecuteMsg::SwapTokens{pool_id,amount} => try_swap_tokens(deps,info,pool_id,amount),
     }
 }
 
@@ -42,6 +42,8 @@ pub fn try_create(
             // found:info.funds.len().to_string(),
         });
     }
+
+    // TODO: add automatic id creation (id=name#number) ex: akt/regen#23
     let new_pool= Pool{
         id: name.clone(),
         name:name.clone(),
@@ -105,16 +107,102 @@ pub fn try_add_funds(
     Ok(res)
 }
 
+pub fn try_swap_tokens(
+    deps: DepsMut,
+    info:MessageInfo,
+    pool_id:String,
+    amount: Coin,
+) -> Result<Response, ContractError> {
+    let mut pool=POOLS.load(deps.storage, pool_id.as_str())?;
+    if info.funds.len()!=1{
+        return Err(ContractError::FundsMismatched{});
+    }
+
+    // TODO: add error handling for token not found
+    let give_coin_index=pool.coins.iter().enumerate().find_map(|(i,token)|{
+        if token.denom==amount.denom{
+            Some(i)
+        }
+        else{
+            None
+        }
+    }).unwrap();
+
+    if pool.coins[give_coin_index].amount < amount.amount{
+        return Err(ContractError::InsufficientFunds{});
+    }
+
+    // TODO: add error handling for token not found
+    let take_coin_index=pool.coins.iter().enumerate().find_map(|(i,token)|{
+        if token.denom==info.funds[0].denom{
+            Some(i)
+        }
+        else{
+            None
+        }
+    }).unwrap();
+
+    let price = query_price(deps.as_ref(), pool_id.clone(), amount.denom.clone(), info.funds[0].denom.clone()).unwrap();
+
+    if amount.amount.checked_mul(price.price).unwrap()>info.funds[0].amount{
+        return Err(ContractError::InsufficientFunds{});
+    }
+
+    pool.coins[take_coin_index].amount+=info.funds[0].amount;
+    pool.coins[give_coin_index].amount=pool.coins[give_coin_index].amount.checked_sub(amount.amount).unwrap();
+
+    POOLS.save(deps.storage,pool_id.as_str(),&pool)?;
+
+    Ok(send_tokens(info.sender, vec![amount], "Swap"))
+}
+
+fn send_tokens(to_address: Addr, amount: Vec<Coin>, action: &str) -> Response {
+    let attributes = vec![attr("action", action), attr("to", to_address.clone())];
+
+    Response {
+        submessages: vec![],
+        messages: vec![CosmosMsg::Bank(BankMsg::Send {
+            to_address: to_address.into(),
+            amount,
+        })],
+        data: None,
+        attributes,
+    }
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetFunds {id} => to_binary(&query_funds(deps,id)?),
+        QueryMsg::GetPrice{pool_id,denom1,denom2}=>to_binary(&query_price(deps,pool_id,denom1,denom2)?),
     }
 }
 
 fn query_funds(deps: Deps,id:String) -> StdResult<FundsResponse> {
     let pool = POOLS.load(deps.storage ,id.as_str())?;
     Ok(FundsResponse { funds: pool.coins })
+}
+
+fn query_price(
+    deps:Deps,
+    pool_id:String,
+    denom1:String,
+    denom2:String,
+)->StdResult<PriceResponse>{
+    let pool = POOLS.load(deps.storage ,pool_id.as_str())?;
+    let mut t1=Uint128(0);
+    let mut t2=Uint128(0);
+
+    for coin in pool.coins{
+        if coin.denom==denom1{
+            t1=coin.amount;
+        } 
+        else if coin.denom==denom2{
+            t2=coin.amount;
+        }
+    }
+    let price = t2.checked_div(t1)?;
+    Ok(PriceResponse{price:price})
 }
 
 #[cfg(test)]
@@ -199,9 +287,117 @@ mod tests {
         let msg = ExecuteMsg::AddFunds { pool_id: "POOL1".to_string() };
         let _res = execute(deps.as_mut(), mock_env(), add_fund_info, msg).unwrap();
 
-        // should now be 5
+        //query funds
         let res = query(deps.as_ref(), mock_env(), QueryMsg::GetFunds {id:"POOL1".to_string()}).unwrap();
         let value: FundsResponse = from_binary(&res).unwrap();
         assert_eq!(vec![coin(220, "earth"),coin(110, "mars")], value.funds);
+    }
+
+    #[test]
+    fn price() {
+        let mut deps = mock_dependencies(&coins(0, "token"));
+
+        let msg = InstantiateMsg {};
+        let info = mock_info("creator", &coins(0, "token"));
+        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        // creating new pool
+        let amount = vec![coin(200, "earth"),coin(100, "mars")];
+        let info = mock_info("elon", &amount);
+        let msg = ExecuteMsg::CreatePool {name:"POOL1".to_string()};
+        let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        // should show pool balances
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetFunds {id:"POOL1".to_string()}).unwrap();
+        let value: FundsResponse = from_binary(&res).unwrap();
+        assert_eq!(vec![coin(200, "earth"),coin(100, "mars")], value.funds);
+
+        //query price
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetPrice{pool_id:"POOL1".to_string(),denom1:"earth".to_string(),denom2:"mars".to_string()}).unwrap();
+        let value: PriceResponse = from_binary(&res).unwrap();
+        assert_eq!(Uint128(0), value.price);
+    }
+
+    #[test]
+    fn swap() {
+        let mut deps = mock_dependencies(&coins(0, "token"));
+
+        let msg = InstantiateMsg {};
+        let info = mock_info("creator", &coins(0, "token"));
+        let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        // creating new pool
+        let amount = vec![coin(200, "earth"),coin(100, "mars")];
+        let info = mock_info("elon", &amount);
+        let msg = ExecuteMsg::CreatePool {name:"POOL1".to_string()};
+        let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        // should show pool balances
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetFunds {id:"POOL1".to_string()}).unwrap();
+        let value: FundsResponse = from_binary(&res).unwrap();
+        assert_eq!(vec![coin(200, "earth"),coin(100, "mars")], value.funds);
+
+        //query price
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetPrice{pool_id:"POOL1".to_string(),denom1:"mars".to_string(),denom2:"earth".to_string()}).unwrap();
+        let value: PriceResponse = from_binary(&res).unwrap();
+        assert_eq!(Uint128(2), value.price);
+
+
+        //wrong number of funds
+        let ask = coin(1,"mars");
+        let amount = vec![coin(200, "earth"),coin(100, "token")];
+        let info = mock_info("elon", &amount);
+        let msg = ExecuteMsg::SwapTokens{pool_id:"POOL1".to_string(),amount:ask};
+        let res= execute(deps.as_mut(), mock_env(), info, msg);
+        match res{
+            Err(ContractError::FundsMismatched {}) => {}
+            _ => panic!("Must return Insufficient funds error"),
+        }
+
+        //insufficent tokens sent
+        let ask = coin(1,"mars");
+        let info = mock_info("elon", &coins(1,"earth"));
+        let msg = ExecuteMsg::SwapTokens{pool_id:"POOL1".to_string(),amount:ask};
+        let res= execute(deps.as_mut(), mock_env(), info, msg);
+        match res{
+            Err(ContractError::InsufficientFunds {}) => {}
+            _ => panic!("Must return Insufficient funds error"),
+        }
+
+        //insufficient tokens asked
+        let ask = coin(300,"mars");
+        let info = mock_info("elon", &coins(2,"earth"));
+        let msg = ExecuteMsg::SwapTokens{pool_id:"POOL1".to_string(),amount:ask};
+        let res= execute(deps.as_mut(), mock_env(), info, msg);
+        match res{
+            Err(ContractError::InsufficientFunds {}) => {}
+            _ => panic!("Must return Insufficient funds error"),
+        }
+        
+        let ask = coin(1,"mars");
+        let info = mock_info("elon", &coins(2,"earth"));
+        let msg = ExecuteMsg::SwapTokens{pool_id:"POOL1".to_string(),amount:ask};
+        let res= execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        assert_eq!(1, res.messages.len());
+        let msg = res.messages.get(0).expect("no message");
+        assert_eq!(
+            msg,
+            &CosmosMsg::Bank(BankMsg::Send {
+                to_address: "elon".into(),
+                amount: coins(1, "mars"),
+            })
+        );
+
+        //qurey funds
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetFunds {id:"POOL1".to_string()}).unwrap();
+        let value: FundsResponse = from_binary(&res).unwrap();
+        assert_eq!(vec![coin(202, "earth"),coin(99, "mars")], value.funds);
+
+        //qurey price
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetPrice{pool_id:"POOL1".to_string(),denom1:"mars".to_string(),denom2:"earth".to_string()}).unwrap();
+        let value: PriceResponse = from_binary(&res).unwrap();
+        assert_eq!(Uint128(2), value.price);
+        
     }
 }
