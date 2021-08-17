@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Response, StdResult, Uint128,
+    attr, entry_point, to_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
+    Env, MessageInfo, Response, StdResult, Uint128,
 };
 
 use crate::error::ContractError;
@@ -168,7 +168,10 @@ pub fn try_swap_tokens(
     )
     .unwrap();
 
-    if amount.amount.checked_mul(price.price).unwrap() > info.funds[0].amount {
+    // if amount.amount.checked_mul(price.price).unwrap() > info.funds[0].amount {
+    //     return Err(ContractError::InsufficientFunds {});
+    // }
+    if price.price * amount.amount > info.funds[0].amount {
         return Err(ContractError::InsufficientFunds {});
     }
 
@@ -232,7 +235,7 @@ fn query_price(
             t2 = coin.amount;
         }
     }
-    let value = t2.checked_div(t1)?;
+    let value = Decimal::from_ratio(t2.u128(), t1.u128());
     Ok(PriceResponse { price: value })
 }
 
@@ -395,7 +398,7 @@ mod tests {
         )
         .unwrap();
         let value: PriceResponse = from_binary(&res).unwrap();
-        assert_eq!(Uint128(0), value.price);
+        assert_eq!(Decimal::from_ratio(1 as u128, 2 as u128), value.price);
     }
 
     #[test]
@@ -438,7 +441,7 @@ mod tests {
         )
         .unwrap();
         let value: PriceResponse = from_binary(&res).unwrap();
-        assert_eq!(Uint128(2), value.price);
+        assert_eq!(Decimal::from_ratio(2 as u128, 1 as u128), value.price);
 
         //wrong number of funds
         let ask = coin(1, "mars");
@@ -522,6 +525,6 @@ mod tests {
         )
         .unwrap();
         let value: PriceResponse = from_binary(&res).unwrap();
-        assert_eq!(Uint128(2), value.price);
+        assert_eq!(Decimal::from_ratio(202 as u128, 99 as u128), value.price);
     }
 }
