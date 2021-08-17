@@ -5,8 +5,8 @@ use cosmwasm_std::Coin;
 use cw_storage_plus::Map;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Pool{
-    pub id:String,
+pub struct Pool {
+    pub id: String,
     pub name: String,
     pub coins: Vec<Coin>,
 }

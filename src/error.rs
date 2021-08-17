@@ -10,15 +10,15 @@ pub enum ContractError {
     Unauthorized {},
 
     #[error("Funds Mismatch")]
-    FundsMismatched{
+    FundsMismatched {
         // expected: String,
-        // found: String,
+    // found: String,
     },
 
     #[error("Insufficient Funds")]
-    InsufficientFunds{
+    InsufficientFunds {
         // expected: String,
-        // found: String,
+    // found: String,
     },
 
     #[error("Pool id already in use")]

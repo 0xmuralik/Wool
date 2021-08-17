@@ -3,7 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use wool::msg::{FundsResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use wool::msg::{ExecuteMsg, FundsResponse, InstantiateMsg, QueryMsg};
 use wool::state::Pool;
 
 fn main() {
