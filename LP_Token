@@ -1,0 +1,5 @@
+100 earth + 200 mars = 100LP 1lp=4mars
+50 earth + 100 mars = 50LP 1lp=4mars
+
+swap 10 earth->20 mars
+160 earth + 280 mars = 150LP 1lp=4mars

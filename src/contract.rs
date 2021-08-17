@@ -107,6 +107,8 @@ pub fn try_add_funds(
     Ok(res)
 }
 
+// TODO: add fee while swapping tokens
+// TODO: add swap limit based on pool balance
 pub fn try_swap_tokens(
     deps: DepsMut,
     info:MessageInfo,
@@ -183,6 +185,8 @@ fn query_funds(deps: Deps,id:String) -> StdResult<FundsResponse> {
     Ok(FundsResponse { funds: pool.coins })
 }
 
+
+// TODO: change price to float type
 fn query_price(
     deps:Deps,
     pool_id:String,

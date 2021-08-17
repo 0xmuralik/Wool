@@ -9,6 +9,7 @@ pub struct InstantiateMsg {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    // TODO: add mint and burn LP tokens
     CreatePool{name:String},
     AddFunds{pool_id:String},
     SwapTokens{pool_id:String,amount:Coin},
