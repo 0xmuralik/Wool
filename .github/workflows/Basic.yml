@@ -21,13 +21,19 @@ jobs:
           target: wasm32-unknown-unknown
           override: true
 
-      - name: Run unit tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: unit-test
-          args: --locked
-        env:
-          RUST_BACKTRACE: 1
+#       - name: Run unit tests
+#         uses: actions-rs/cargo@v1
+#         with:
+#           command: unit-test
+#           args: --locked
+#         env:
+#           RUST_BACKTRACE: 1
+      
+      - uses: actions/checkout@v2
+      - name: Build
+        run: cargo build --verbose
+      - name: Run tests
+        run: cargo test --verbose
 
       - name: Compile WASM contract
         uses: actions-rs/cargo@v1
