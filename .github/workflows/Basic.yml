@@ -17,23 +17,17 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.44.1
+          toolchain: 1.51.0
           target: wasm32-unknown-unknown
           override: true
 
-#       - name: Run unit tests
-#         uses: actions-rs/cargo@v1
-#         with:
-#           command: unit-test
-#           args: --locked
-#         env:
-#           RUST_BACKTRACE: 1
-      
-      - uses: actions/checkout@v2
-      - name: Build
-        run: cargo build --verbose
-      - name: Run tests
-        run: cargo test --verbose
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: unit-test
+          args: --locked
+        env:
+          RUST_BACKTRACE: 1
 
       - name: Compile WASM contract
         uses: actions-rs/cargo@v1
@@ -54,7 +48,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.44.1
+          toolchain: 1.51.0
           override: true
           components: rustfmt, clippy
 
