@@ -5,11 +5,47 @@
     {
       "type": "object",
       "required": [
-        "get_count"
+        "get_funds"
       ],
       "properties": {
-        "get_count": {
-          "type": "object"
+        "get_funds": {
+          "type": "object",
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_price"
+      ],
+      "properties": {
+        "get_price": {
+          "type": "object",
+          "required": [
+            "denom1",
+            "denom2",
+            "pool_id"
+          ],
+          "properties": {
+            "denom1": {
+              "type": "string"
+            },
+            "denom2": {
+              "type": "string"
+            },
+            "pool_id": {
+              "type": "string"
+            }
+          }
         }
       },
       "additionalProperties": false

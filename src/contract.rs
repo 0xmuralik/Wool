@@ -98,7 +98,7 @@ pub fn try_add_funds(
                 return Err(ContractError::FundsMismatched{
                 // expected: "coins in pool".to_string(),
                 // found: token.denom
-            })
+            });
             }
         }
     }
@@ -232,8 +232,8 @@ fn query_price(
             t2 = coin.amount;
         }
     }
-    let price = t2.checked_div(t1)?;
-    Ok(PriceResponse { price: price })
+    let value = t2.checked_div(t1)?;
+    Ok(PriceResponse { price: value })
 }
 
 #[cfg(test)]
