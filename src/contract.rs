@@ -98,7 +98,7 @@ pub fn try_add_funds(
                 return Err(ContractError::FundsMismatched{
                 // expected: "coins in pool".to_string(),
                 // found: token.denom
-            })
+            });
             }
         }
     }
