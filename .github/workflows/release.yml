@@ -4,11 +4,7 @@ name: Release
 
 # Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the 0.14 branch
-  push:
-    branches: [ 0.14 ]
   pull_request:
-    branches: [ 0.14 ]
     types: closed
 
   # Allows you to run this workflow manually from the Actions tab
